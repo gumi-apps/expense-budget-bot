@@ -1,7 +1,7 @@
 {
     "builds": [
         {
-            "src": "base/wsgi.py",
+            "src": "core/wsgi.py",
             "use": "@vercel/python",
             "config": {
                 "maxLambdaSize": "15mb",
@@ -27,7 +27,7 @@
         },
         {
             "src": "/(.*)",
-            "dest": "base/wsgi.py"
+            "dest": "core/wsgi.py"
         }
     ],
     "outputDirectory": "staticfiles"
