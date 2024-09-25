@@ -16,7 +16,7 @@ WEB_HOOK_URL = env("WEB_HOOK_URL")
 
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["expense-budget-bot.vercel.app"]
 
 AUTH_USER_MODEL = "bot.User"
 
