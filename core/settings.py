@@ -9,12 +9,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 SECRET_KEY = env("SECRET_KEY")
+
 BOT_TOKEN = env("BOT_TOKEN")
+
+WEB_HOOK_URL = env("WEB_HOOK_URL")
 
 DEBUG = True
 
 ALLOWED_HOSTS = []
 
+AUTH_USER_MODEL = "bot.User"
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -23,7 +27,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "bot1",
+    "bot",
 ]
 
 MIDDLEWARE = [
