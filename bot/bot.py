@@ -21,6 +21,15 @@ msg_earnt = "I Earnt 😊"
 msg_debt = "I am in Debt 😓"
 msg_owe = "Someone owes me 🙄"
 
+"""
+start - start the bot
+spends - show my spendings
+earnings - show my earnings
+debts - show my debts
+owes - show my owes
+
+"""
+
 
 def get_keyboard(**kwargs):
     keyboard = ReplyKeyboardMarkup(
@@ -70,7 +79,7 @@ def delete_message(message):
     return bot.delete_message(message.chat.id, message.id)
 
 
-def get_user(message):
+def get_user(message, func, *args):
     try:
 
         from_user = message.from_user
@@ -79,7 +88,14 @@ def get_user(message):
 
         return contact
     except:
-        return False
+        mark = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        mark.add(KeyboardButton("Share Contact", request_contact=True))
+        bot.register_next_step_handler(message, contact_handler, func)
+        msg = """
+Share your contact
+        """
+        bot.send_message(message.chat.id, msg, reply_markup=mark)
+        return get_user(message, *args)
 
 
 def get_amount(message, func):
@@ -119,14 +135,13 @@ def get_text(message, func, *args):
 
 @bot.message_handler(commands=["start"])
 def start(message):
-    user = get_user(message)
+    user = get_user(message, start)
 
-    if not user:
-        mark = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-        mark.add(KeyboardButton("Share Contact", request_contact=True))
-        return bot.send_message(
-            message.chat.id, "Share Contact to Get started", reply_markup=mark
-        )
+    # if not user:
+
+    #     return bot.send_message(
+    #         message.chat.id, "Share Contact to Get started", reply_markup=mark
+    #     )
 
     bot.send_message(
         message.chat.id, f"Hello {user.first_name}👋", reply_markup=get_keyboard()
@@ -135,6 +150,7 @@ def start(message):
 
 @bot.message_handler(func=lambda msg: msg.text == msg_earnt)
 def ernt(message, amount=None, text=None):
+    user = get_user(message, ernt)
     if not amount:
         bot.register_next_step_handler(message, get_amount, ernt)
         return bot.send_message(
@@ -145,8 +161,6 @@ def ernt(message, amount=None, text=None):
     if not text:
         bot.register_next_step_handler(message, get_text, ernt, amount)
         return bot.send_message(message.chat.id, "Okay specify the source??")
-
-    user = get_user(message)
 
     Income.objects.create(reason=text, amount=amount, user=user)
     total = user.incomes.all().aggregate(total=Sum("amount"))["total"]
@@ -166,7 +180,7 @@ def ernt(message, amount=None, text=None):
 
 @bot.message_handler(func=lambda msg: msg.text == msg_spent)
 def spnt(message, amount=None, text=None):
-    user = get_user(message)
+    user = get_user(message, spnt)
     if not amount:
         bot.register_next_step_handler(message, get_amount, spnt)
         return bot.send_message(
@@ -195,18 +209,67 @@ def spnt(message, amount=None, text=None):
 
 
 @bot.message_handler(func=lambda msg: msg.text == msg_owe)
-def ow(message):
-    bot.send_message(message.chat.id, "Okay go on...how much they take from you?")
+def ow(message, amount=None, text=None):
+    user = get_user(message, ow, amount, text)
+    if not amount:
+        bot.register_next_step_handler(message, get_amount, ow)
+        return bot.send_message(
+            message.chat.id,
+            "Okay go on...how much they take from you?",
+            reply_markup=get_common_amount(),
+        )
+    if not text:
+        bot.register_next_step_handler(message, get_text, ow, amount)
+        return bot.send_message(message.chat.id, "Who??")
+
+    Owe.objects.create(
+        user=user,
+        name=text,
+        amount=amount,
+    )
+    total = Owe.objects.filter(amount__gte=0).aggregate(total=Sum("amount"))["total"]
+    msg = f"""
+💰 You have {total} ETB from others
+    """
+    bot.send_message(
+        message.chat.id, msg, reply_markup=get_keyboard(), parse_mode="MARKDOWN"
+    )
 
 
 @bot.message_handler(func=lambda msg: msg.text == msg_debt)
-def debt(message):
-    bot.send_message(message.chat.id, "Seriously...how much debt??")
+def debt(message, amount=None, text=None):
+    user = get_user(message, debt, amount, text)
+    if not amount:
+        bot.register_next_step_handler(message, get_amount, debt)
+        return bot.send_message(
+            message.chat.id,
+            "Seriously...how much debt??",
+            reply_markup=get_common_amount(),
+        )
+
+    if not text:
+        bot.register_next_step_handler(message, get_text, debt, amount)
+        return bot.send_message(message.chat.id, "To who??")
+
+    Owe.objects.create(
+        user=user,
+        name=text,
+        amount=amount * -1,
+    )
+
+    total = Owe.objects.filter(amount__lte=0).aggregate(total=Sum("amount"))["total"]
+
+    msg = f"""
+💰 You are {total} ETB in debt
+    """
+    bot.send_message(
+        message.chat.id, msg, reply_markup=get_keyboard(), parse_mode="MARKDOWN"
+    )
 
 
 @bot.message_handler(commands=["spends"])
 def spens(message):
-    user = get_user(message)
+    user = get_user(message, spens)
 
     inc = (
         user.incomes.filter(amount__lt=0).values("reason").annotate(total=Sum("amount"))
@@ -227,7 +290,7 @@ def spens(message):
 
 @bot.message_handler(commands=["earnings"])
 def ernings(message):
-    user = get_user(message)
+    user = get_user(message, ernings)
 
     inc = (
         user.incomes.filter(amount__gt=0).values("reason").annotate(total=Sum("amount"))
@@ -246,9 +309,104 @@ def ernings(message):
     bot.send_photo(message.chat.id, photo=img, caption=msg, parse_mode="MARKDOWN")
 
 
+# @bot.message_handler(func=lambda msg: msg.text == msg_owe)
+# def someone_owe(message, amount=None, text=None):
+#     if amount:
+#         bot.register_next_step_handler(
+#             message,
+#             someone_owe,
+#         )
+#         return bot.send_message(
+#             message.chat.id, "Specify the amount?", reply_markup=get_common_amount()
+#         )
+#     if text:
+#         bot.register_next_step_handler(message, someone_owe, amount)
+#         return bot.send_message(message.chat.id, "Reason??")
+#     user = get_user(message)
+
+#     Owe.objects.create(
+#         user=user,
+#         reason=text,
+#         amount=amount,
+#     )
+#     total = Owe.objects.filter(amount__gte=0).aggregate(total=Sum("amount"))["total"]
+#     msg = f"""
+# 💰 You have {total} ETB from others
+#     """
+#     bot.send_message(
+#         message.chat.id, msg, reply_markup=get_keyboard(), parse_mode="MARKDOWN"
+#     )
+
+
+# @bot.message_handler(func=lambda msg: msg.text == msg_debt)
+# def owe_someone(message, amount=None, text=None):
+#     if amount:
+#         bot.register_next_step_handler(
+#             message,
+#             someone_owe,
+#         )
+#         return bot.send_message(
+#             message.chat.id, "Specify the amount?", reply_markup=get_common_amount()
+#         )
+#     if text:
+#         bot.register_next_step_handler(message, someone_owe, amount)
+#         return bot.send_message(message.chat.id, "Reason??")
+#     user = get_user(message)
+
+#     Owe.objects.create(
+#         user=user,
+#         reason=text,
+#         amount=amount * -1,
+#     )
+
+#     total = Owe.objects.filter(amount__lte=0).aggregate(total=Sum("amount"))["total"]
+
+#     msg = f"""
+# 💰 You are {total} ETB in debt
+#     """
+#     bot.send_message(
+#         message.chat.id, msg, reply_markup=get_keyboard(), parse_mode="MARKDOWN"
+# )
+
+
+@bot.message_handler(commands=["debts"])
+def mydebts(message):
+    total = Owe.objects.filter(amount__lte=0).aggregate(total=Sum("amount"))["total"]
+    tt = "\n".join(
+        [f"\t- {ow.name}: `{ow.amount}`" for ow in Owe.objects.filter(amount__gte=0)]
+    )
+    msg = f"""
+Debt Summary
+{tt}
+____________________________________
+💰 You are {total} ETB in debt
+    """
+    bot.send_message(
+        message.chat.id, msg, reply_markup=get_keyboard(), parse_mode="MARKDOWN"
+    )
+
+
+@bot.message_handler(commands=["owes"])
+def my_owes(message):
+
+    total = Owe.objects.filter(amount__gte=0).aggregate(total=Sum("amount"))["total"]
+    tt = "\n".join(
+        [f"\t- {ow.name}: `{ow.amount}`" for ow in Owe.objects.filter(amount__gte=0)]
+    )
+    msg = f"""
+Owe Summary
+{tt}
+____________________________________
+💰 You have {total} ETB from others
+    """
+    bot.send_message(
+        message.chat.id, msg, reply_markup=get_keyboard(), parse_mode="MARKDOWN"
+    )
+
+
 ######################## Telegram Contact Submit ########################################
 @bot.message_handler(content_types=["contact"])
-def contact_handler(message):
+def contact_handler(message, func=None):
     con = message.contact
     data = {
         "username": message.from_user.id,
@@ -274,7 +432,10 @@ def contact_handler(message):
     time.sleep(0.5)
 
     bot.delete_message(message.chat.id, msg1.id)
-    start(message)
+
+    if func:
+
+        func(message)
 
 
 ######################## Telegram Contact Submit ########################################

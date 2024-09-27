@@ -31,7 +31,7 @@ class User(AbstractUser):
 #     updated_at = models.DateTimeField(auto_now=True)
 
 
-class Debt(models.Model):
+class Owe(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="debts")
     amount = models.IntegerField()
     name = models.CharField(max_length=255)
